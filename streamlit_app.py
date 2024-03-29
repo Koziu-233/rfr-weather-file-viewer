@@ -1,50 +1,59 @@
 import streamlit as st
-import numpy as np
-import pandas as pd
-import altair as alt
 
-# Page title
-st.set_page_config(page_title='Interactive Data Explorer', page_icon='📊')
-st.title('📊 Interactive Data Explorer')
+#----------///Class definitions///----------
+class Material:
+    def __init__(self, txt_name, num_E, num_therm):
+        self.name = txt_name
+        self.type = 'Cable'
+        self.E = num_E #Young's modulus of cable in MPa (N/mm2)
+        self.therm = num_therm #Thermal expansion rate of cable in 1/°C
+    
+    def __repr__(self):
+        return 'Material object<%s>' % self.name
 
-with st.expander('About this app'):
-  st.markdown('**What can this app do?**')
-  st.info('This app shows the use of Pandas for data wrangling, Altair for chart creation and editable dataframe for data interaction.')
-  st.markdown('**How to use the app?**')
-  st.warning('To engage with the app, 1. Select genres of your interest in the drop-down selection box and then 2. Select the year duration from the slider widget. As a result, this should generate an updated editable DataFrame and line plot.')
-  
-st.subheader('Which Movie Genre performs ($) best at the box office?')
+class Cable:
+    def __init__(self, txt_diam, num_span, obj_material):
+        #---//General information//---
+        self.span = num_span
+        self.material = obj_material
+        
+        #---//Get the cable limit load//---
+        dict_diam = {'25': {'area': 440, 'load': 596},
+                     '30': {'area': 648, 'load': 858},
+                     '35': {'area': 842, 'load': 1170},
+                     '45': {'area': 1180, 'load': 1830},
+                     '135': {'area': 12368, 'load': 17400}}
+        try:
+            self.area = dict_diam[txt_diam]['area'] #Area in mm2
+            self.load_break = dict_diam[txt_diam]['load'] #Breaking load in kN
+        except:
+            raise Exception('The input diameter is not in table!')
+        self.diameter = float(txt_diam) #Diameter in mm
+        fact_safe = 1.5
+        fact_important = 1.0
+        self.load_limit =self.load_break / (fact_safe * fact_important)
+        
+    
+    def __repr__(self):
+        return 'Cable object<Φ %s mm>' % self.diameter
 
-# Load data
-df = pd.read_csv('data/movies_genres_summary.csv')
-df.year = df.year.astype('int')
+#----------///Main///----------
+#---/Title/---
+st.title("RFR's Cable Calculator")
 
-# Input widgets
-## Genres selection
-genres_list = df.genre.unique()
-genres_selection = st.multiselect('Select genres', genres_list, ['Action', 'Adventure', 'Biography', 'Comedy', 'Drama', 'Horror'])
+#---/Initiate the objects/---
+material = Material("Cable", 1.6E5, 1.6E-5)
+cable = None
 
-## Year selection
-year_list = df.year.unique()
-year_selection = st.slider('Select year duration', 1986, 2006, (2000, 2016))
-year_selection_list = list(np.arange(year_selection[0], year_selection[1]+1))
+#---/Define the cable/---
+diam = st.selectbox("Select the diameter (mm):",
+                    options = ["None", "30", "35", "45", "135"],
+                    placeholder = "Select the target diameter...")
+span = st.slider("Choose the span (m): ", 1, 100, 10, 1)
 
-df_selection = df[df.genre.isin(genres_selection) & df['year'].isin(year_selection_list)]
-reshaped_df = df_selection.pivot_table(index='year', columns='genre', values='gross', aggfunc='sum', fill_value=0)
-reshaped_df = reshaped_df.sort_values(by='year', ascending=False)
-
-
-# Display DataFrame
-
-df_editor = st.data_editor(reshaped_df, height=212, use_container_width=True,
-                            column_config={"year": st.column_config.TextColumn("Year")},
-                            num_rows="dynamic")
-df_chart = pd.melt(df_editor.reset_index(), id_vars='year', var_name='genre', value_name='gross')
-
-# Display chart
-chart = alt.Chart(df_chart).mark_line().encode(
-            x=alt.X('year:N', title='Year'),
-            y=alt.Y('gross:Q', title='Gross earnings ($)'),
-            color='genre:N'
-            ).properties(height=320)
-st.altair_chart(chart, use_container_width=True)
+if diam != "None":
+    cable = Cable(diam, span, material)
+    [col_tri_1, col_tri_2, col_tri_3] = st.columns(3)
+    col_tri_1.metric("Section area: ", str(cable.area) + " mm2")
+    col_tri_2.metric("Limit tension: ", str(int(cable.load_limit)) + " kN")
+    col_tri_3.metric("Breaking load: ", str(cable.load_break) + " kN")
