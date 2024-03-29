@@ -1,5 +1,6 @@
 import streamlit as st
 import scipy as sp
+import numpy as np
 
 #----------///Class definitions///----------
 class Material:
